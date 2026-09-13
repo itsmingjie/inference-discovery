@@ -1,0 +1,45 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  go:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ['1.24.x', 'stable']
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: reference/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: reference/go/go.sum
+      - run: go mod verify
+      - run: test -z "$(gofmt -l cmd internal tools)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go build ./cmd/inference
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r conformance/requirements.txt
+      - run: python conformance/check_schema.py
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.18.1
+          args: check

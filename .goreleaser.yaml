@@ -1,0 +1,48 @@
+version: 2
+project_name: inference
+
+before:
+  hooks:
+    - sh -c 'cd reference/go && go mod vendor -o ../../licenses'
+    - sh -c 'cp "$(go env GOROOT)/LICENSE" licenses/GO-LICENSE'
+
+builds:
+  - id: inference
+    dir: reference/go
+    main: ./cmd/inference
+    binary: inference
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -buildvcs=false]
+    ldflags:
+      - -s -w -X github.com/itsmingjie/inference-discovery/reference/go/internal/cli.Version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - README.md
+      - CONTRIBUTING.md
+      - LICENSE
+      - SECURITY.md
+      - docs/**
+      - spec/**
+      - conformance/**
+      - examples/**
+      - licenses/**/LICENSE*
+      - licenses/GO-LICENSE
+
+checksum:
+  name_template: SHA256SUMS
+
+release:
+  github:
+    owner: itsmingjie
+    name: inference-discovery
+  draft: true
+  prerelease: true
+
+changelog:
+  use: git
+  sort: asc

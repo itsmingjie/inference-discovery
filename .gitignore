@@ -1,0 +1,9 @@
+/bin/
+/dist/
+.DS_Store
+__pycache__/
+.venv/
+*.test
+coverage.out
+.sc/
+/licenses/

@@ -1,0 +1,222 @@
+[
+  {
+    "name": "open streaming",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "models": [
+          {
+            "id": "office-chat"
+          },
+          {
+            "id": "office-reasoner",
+            "name": "Office Reasoner",
+            "reasoning": true,
+            "reasoning_efforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "context_window": 1.31072e5,
+            "max_output_tokens": 16384.0
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": true
+  },
+  {
+    "name": "open without streaming",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [],
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": false
+  },
+  {
+    "name": "unknown extensions",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "Version": 99,
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      },
+      "x-vendor": {
+        "nested": [
+          1,
+          2
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": true
+  },
+  {
+    "name": "unsupported authentication",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "invitation"
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": false
+  },
+  {
+    "name": "unsupported API profile",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "embeddings"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": false
+  },
+  {
+    "name": "credentials in endpoint URL",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "https://user:secret@example.com/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": false,
+    "streaming_connection": false
+  },
+  {
+    "name": "missing authentication declaration",
+    "descriptor": {
+      "version": 1,
+      "name": "Office AI",
+      "api": {
+        "base_url": "http://192.0.2.20:8000/v1",
+        "profiles": [
+          "openai-chat-completions"
+        ],
+        "capabilities": [
+          "streaming"
+        ],
+        "default_model": "office-chat",
+        "models": [
+          {
+            "id": "office-chat"
+          }
+        ]
+      }
+    },
+    "valid": false,
+    "streaming_connection": false
+  },
+  {
+    "name": "duplicate descriptor member",
+    "raw": "{\"version\": 1, \"version\": 1, \"name\": \"Office AI\", \"api\": {\"base_url\": \"http://192.0.2.20:8000/v1\", \"profiles\": [\"openai-chat-completions\"], \"capabilities\": [\"streaming\"], \"default_model\": \"office-chat\", \"models\": [{\"id\": \"office-chat\"}]}, \"auth\": {\"methods\": [\"none\"]}}",
+    "valid": false,
+    "streaming_connection": false
+  }
+]
