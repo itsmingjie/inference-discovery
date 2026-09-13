@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -41,42 +42,56 @@ func TestNoAmbientCredentialsOrRedirects(t *testing.T) {
 	}
 }
 
-func TestTLSBoundsAndTimeout(t *testing.T) {
-	tls := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "ok") }))
-	defer tls.Close()
-	c := Client(30 * time.Millisecond)
-	defer c.CloseIdleConnections()
-	if _, err := Request(context.Background(), c, "GET", tls.URL, nil); err == nil {
-		t.Fatal("accepted untrusted certificate")
+func TestTLSValidation(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "ok") }))
+	defer server.Close()
+	untrusted := Client(5 * time.Second)
+	defer untrusted.CloseIdleConnections()
+	_, err := Request(context.Background(), untrusted, "GET", server.URL, nil)
+	var certificateError x509.UnknownAuthorityError
+	if !errors.As(err, &certificateError) {
+		t.Fatalf("expected certificate rejection, got %v", err)
 	}
+
+	// Transport configuration is immutable once requests have started.
+	trusted := Client(5 * time.Second)
+	defer trusted.CloseIdleConnections()
 	roots := x509.NewCertPool()
-	roots.AddCert(tls.Certificate())
-	c.Transport.(*http.Transport).TLSClientConfig.RootCAs = roots
-	trusted, err := Request(context.Background(), c, "GET", tls.URL, nil)
+	roots.AddCert(server.Certificate())
+	trusted.Transport.(*http.Transport).TLSClientConfig.RootCAs = roots
+	res, err := Request(context.Background(), trusted, "GET", server.URL, nil)
 	if err != nil {
 		t.Fatal("trusted HTTPS failed", err)
 	}
-	trusted.Body.Close()
+	res.Body.Close()
+}
+
+func TestResponseBounds(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/slow" {
-			select {
-			case <-r.Context().Done():
-				return
-			case <-time.After(time.Second):
-			}
-		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, strings.Repeat("x", 100))
 	}))
 	defer server.Close()
-	if _, err := Request(context.Background(), c, "GET", server.URL+"/slow", nil); err == nil {
-		t.Fatal("timeout not applied")
-	}
+	c := Client(5 * time.Second)
+	defer c.CloseIdleConnections()
 	res, err := Request(context.Background(), c, "GET", server.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = Read(res, 10, "application/json"); err == nil {
 		t.Fatal("accepted oversized body")
+	}
+}
+
+func TestRequestTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	c := Client(30 * time.Millisecond)
+	defer c.CloseIdleConnections()
+	_, err := Request(context.Background(), c, "GET", server.URL, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected request deadline, got %v", err)
 	}
 }
