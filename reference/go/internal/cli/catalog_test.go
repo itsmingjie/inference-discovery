@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -36,33 +35,30 @@ func TestAdvertiserCatalogRefresh(t *testing.T) {
 	client := transport.Client(time.Second)
 	defer client.CloseIdleConnections()
 	api := inference.Client{HTTP: client, Base: cfg.Endpoint, Session: session}
-	b, err := providerDescriptor(ctx, cfg, api)
+	build := func() ([]byte, error) { return (&catalogBuilder{cfg: cfg, api: api}).build(ctx) }
+	reasoning := true
+	contextWindow, maxOutput := int64(131072), int64(16384)
+	support := &descriptor.ModelAPI{Profiles: []string{descriptor.ResponsesProfile}, Capabilities: []string{}}
+	cfg.Models = []descriptor.Model{{ID: "chat", API: support}, {ID: "reasoner", API: support, Reasoning: &reasoning,
+		ReasoningEfforts: []string{"low", "high"}, ContextWindow: &contextWindow, MaxOutputTokens: &maxOutput}}
+	cfg.Model = "reasoner"
+	b, err := build()
 	if err != nil {
 		t.Fatal(err)
 	}
 	d, err := descriptor.Parse(b)
-	if err != nil || len(d.API.Models) != 3 || strings.Contains(string(b), "pricing") {
-		t.Fatalf("unconfigured catalog: %s (%v)", b, err)
-	}
-	reasoning := true
-	contextWindow, maxOutput := int64(131072), int64(16384)
-	cfg.Models = []descriptor.Model{{ID: "chat"}, {ID: "reasoner", Reasoning: &reasoning,
-		ReasoningEfforts: []string{"low", "high"}, ContextWindow: &contextWindow, MaxOutputTokens: &maxOutput}}
-	cfg.Model = "reasoner"
-	b, err = providerDescriptor(ctx, cfg, api)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d, err = descriptor.Parse(b)
 	if err != nil || len(d.API.Models) != 2 || d.API.DefaultModel != "reasoner" || (d.API.Models[1].ContextWindow == nil || *d.API.Models[1].ContextWindow != 131072) {
 		t.Fatalf("configured catalog: %s (%v)", b, err)
 	}
+	if len(d.API.Profiles) != 1 || d.API.Profiles[0] != descriptor.ResponsesProfile {
+		t.Fatal("explicit Responses profile was not advertised")
+	}
 	response = `{"data":[{"id":"chat"}]}`
-	if _, err := providerDescriptor(ctx, cfg, api); err == nil {
+	if _, err := build(); err == nil {
 		t.Fatal("unavailable explicit default must fail the health check")
 	}
 	cfg.Model = ""
-	b, err = providerDescriptor(ctx, cfg, api)
+	b, err = build()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +67,7 @@ func TestAdvertiserCatalogRefresh(t *testing.T) {
 		t.Fatalf("stale model retained: %s (%v)", b, err)
 	}
 	response = `{"data":[{"id":"embedding"}]}`
-	if _, err := providerDescriptor(ctx, cfg, api); err == nil {
+	if _, err := build(); err == nil {
 		t.Fatal("empty configured catalog must fail the health check")
 	}
 }

@@ -56,37 +56,6 @@ func (c Client) request(ctx context.Context, method, path string, body io.Reader
 	return transport.AuthorizedRequest(ctx, c.HTTP, method, raw, body, c.Session.Authorize)
 }
 
-func (c Client) Models(ctx context.Context) ([]string, error) {
-	res, err := c.request(ctx, "GET", "models", nil)
-	if err != nil {
-		return nil, err
-	}
-	b, err := transport.Read(res, MaxResponse, "application/json")
-	if err != nil {
-		return nil, err
-	}
-	var response struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	if err = json.Unmarshal(b, &response); err != nil {
-		return nil, err
-	}
-	if len(response.Data) == 0 || len(response.Data) > 4096 {
-		return nil, fmt.Errorf("model list must contain 1..4096 models")
-	}
-	models := []string{}
-	for _, m := range response.Data {
-		if !descriptor.Text(m.ID, 256) {
-			return nil, fmt.Errorf("invalid model ID")
-		}
-		models = append(models, m.ID)
-	}
-	slices.Sort(models)
-	return slices.Compact(models), nil
-}
-
 func SelectModel(models []string, def, override string) (string, error) {
 	chosen := override
 	if chosen == "" {

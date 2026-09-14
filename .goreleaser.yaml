@@ -26,6 +26,12 @@ archives:
       - CONTRIBUTING.md
       - LICENSE
       - SECURITY.md
+      - Makefile
+      - integrations/pi/index.ts
+      - integrations/pi/provider.ts
+      - integrations/pi/package*.json
+      - integrations/pi/README.md
+      - integrations/pi/LICENSE
       - docs/**
       - spec/**
       - conformance/**

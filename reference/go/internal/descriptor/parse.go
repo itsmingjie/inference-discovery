@@ -54,7 +54,7 @@ func Parse(b []byte) (Descriptor, error) {
 	}
 	d.API.Models = make([]Model, 0, len(models))
 	for _, raw := range models {
-		model, err := parseModel(raw)
+		model, err := ParseModel(raw)
 		if err != nil {
 			return d, fmt.Errorf("invalid model: %w", err)
 		}
@@ -87,13 +87,23 @@ func integer(raw json.RawMessage, min, max int64) (int64, error) {
 	return n, nil
 }
 
-// parseModel applies wire-only rules: exact field names, ignored extensions,
+// ParseModel applies wire-only rules: exact field names, ignored extensions,
 // no null properties, and numeric values independent of JSON number notation.
-func parseModel(b json.RawMessage) (Model, error) {
+func ParseModel(b json.RawMessage) (Model, error) {
 	var m Model
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(b, &fields); err != nil || fields == nil {
 		return m, fmt.Errorf("model must be an object")
+	}
+	if raw, ok := fields["api"]; ok {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil || fields == nil {
+			return m, fmt.Errorf("model.api must be an object")
+		}
+		m.API = &ModelAPI{}
+		if json.Unmarshal(fields["profiles"], &m.API.Profiles) != nil || json.Unmarshal(fields["capabilities"], &m.API.Capabilities) != nil {
+			return m, fmt.Errorf("invalid model.api")
+		}
 	}
 	for _, field := range []struct {
 		name  string

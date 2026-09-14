@@ -9,9 +9,11 @@ remain reachable from elsewhere.
 
 ## Interface and address selection
 
-`--interface` names one active multicast interface. The default inspects local
-interface configuration and selects it only when exactly one eligible interface
-exists; it does not scan services or send probes to guess configuration. Linux
+The default selects the sole eligible interface, or asks the OS which eligible
+interface routes mDNS when several exist. It reads local configuration without
+sending probes or scanning services. Loopback and point-to-point interfaces are
+excluded from automatic selection. If the OS cannot resolve the choice, use
+`--interface` to name one active multicast interface. Linux
 names may be `eth0` or `enp...`; macOS often uses `en0`. A VPN, multiple NICs, Wi-Fi
 client isolation, multicast filtering, or firewall may prevent discovery.
 
@@ -33,6 +35,11 @@ Ensure that label is unique on the network; a collision rename will correctly
 cause TLS verification to fail. Alternatively serve the descriptor on an existing
 HTTPS host and use the explicit descriptor-URL fallback.
 
+DNS service instance names include a random suffix so providers with identical
+display names coexist without operator coordination. Clients show the friendly
+name from the descriptor. Instance IDs may change when a provider reappears;
+they are not persistent identities.
+
 An API base such as `http://127.0.0.1:8000/v1` points to each client's own machine.
 The advertiser rejects literal loopback and `localhost` by default; hostname
 aliases are not a complete loopback/SSRF defense. `--allow-loopback` is only for
@@ -47,25 +54,22 @@ credentials. Durations are Go duration strings such as `10s` and `1m`.
 ```json
 {
   "name": "Office AI",
-  "endpoint": "http://192.168.1.20:8000/v1",
-  "interface": "en0",
-  "listen": ":8081",
-  "model": "office-chat",
-  "timeout": "10s",
-  "health_interval": "15s",
-  "no_stream": false,
-  "allow_loopback": false
+  "endpoint": "http://192.168.1.20:8000/v1"
 }
 ```
 
 Optional `tls_cert` and `tls_key` configure descriptor TLS only; the endpoint URL
 independently controls inference TLS. There is no certificate validation bypass.
-Config changes require a restart. During health failures, metadata returns 503
-and the advertiser sends a goodbye. A successful check updates the default model
+Config changes require a restart. The advertiser waits if the endpoint is still
+starting. During health failures, metadata returns 503 and any advertisement is
+withdrawn. A successful check updates the default model
 and model catalog, and reannounces if necessary. An explicit `--model` never silently changes.
 
 Use [model configuration](models.md) to publish model properties or restrict the
 catalog to text models.
+
+Capability detection is automatic; [model configuration](models.md) documents
+its request limits and the optional overrides for skipping generation checks.
 
 Run the advertiser under an existing process supervisor for unattended use.
 SIGINT/SIGTERM sends goodbyes; forced termination relies on cache expiry or fresh
@@ -82,5 +86,5 @@ variable, URL, or config will not make this reference authenticate upstream.
 
 Future authentication can implement `authentication.Resolver` and a scoped session
 at the existing connection stage. Unsupported methods currently fail closed,
-including mixed lists such as `["none", "invitation"]`. Client integrations and
-enrollment mechanisms are intentionally deferred.
+including mixed lists such as `["none", "invitation"]`. Enrollment mechanisms
+remain an extension point.

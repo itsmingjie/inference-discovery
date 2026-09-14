@@ -218,5 +218,130 @@
     "raw": "{\"version\": 1, \"version\": 1, \"name\": \"Office AI\", \"api\": {\"base_url\": \"http://192.0.2.20:8000/v1\", \"profiles\": [\"openai-chat-completions\"], \"capabilities\": [\"streaming\"], \"default_model\": \"office-chat\", \"models\": [{\"id\": \"office-chat\"}]}, \"auth\": {\"methods\": [\"none\"]}}",
     "valid": false,
     "streaming_connection": false
+  },
+  {
+    "name": "per-model APIs with no shared profile",
+    "descriptor": {
+      "version": 1,
+      "name": "Mixed",
+      "api": {
+        "base_url": "http://192.0.2.1/v1",
+        "profiles": [],
+        "capabilities": [
+          "streaming"
+        ],
+        "models": [
+          {
+            "id": "chat",
+            "api": {
+              "profiles": [
+                "openai-chat-completions"
+              ],
+              "capabilities": [
+                "streaming"
+              ]
+            }
+          },
+          {
+            "id": "responses",
+            "api": {
+              "profiles": [
+                "openai-responses"
+              ],
+              "capabilities": [
+                "streaming"
+              ]
+            }
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": true,
+    "streaming_connection": true
+  },
+  {
+    "name": "empty provider profiles require per-model API",
+    "descriptor": {
+      "version": 1,
+      "name": "Mixed",
+      "api": {
+        "base_url": "http://192.0.2.1/v1",
+        "profiles": [],
+        "capabilities": [
+          "streaming"
+        ],
+        "models": [
+          {
+            "id": "chat"
+          },
+          {
+            "id": "responses",
+            "api": {
+              "profiles": [
+                "openai-responses"
+              ],
+              "capabilities": [
+                "streaming"
+              ]
+            }
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": false,
+    "streaming_connection": false
+  },
+  {
+    "name": "empty per-model profiles rejected",
+    "descriptor": {
+      "version": 1,
+      "name": "Mixed",
+      "api": {
+        "base_url": "http://192.0.2.1/v1",
+        "profiles": [],
+        "capabilities": [
+          "streaming"
+        ],
+        "models": [
+          {
+            "id": "chat",
+            "api": {
+              "profiles": [],
+              "capabilities": [
+                "streaming"
+              ]
+            }
+          },
+          {
+            "id": "responses",
+            "api": {
+              "profiles": [
+                "openai-responses"
+              ],
+              "capabilities": [
+                "streaming"
+              ]
+            }
+          }
+        ]
+      },
+      "auth": {
+        "methods": [
+          "none"
+        ]
+      }
+    },
+    "valid": false,
+    "streaming_connection": false
   }
 ]

@@ -8,8 +8,8 @@ import (
 	"github.com/itsmingjie/inference-discovery/reference/go/internal/authentication"
 )
 
-func inspect(ctx context.Context, selected provider, stream bool, out io.Writer) error {
-	compatibility := selected.Descriptor.Compatible(stream)
+func inspect(ctx context.Context, selected provider, out io.Writer) error {
+	compatibility := selected.Descriptor.Compatible(false)
 	if compatibility == nil {
 		_, compatibility = authentication.None{}.Resolve(ctx, *selected.Descriptor)
 	}

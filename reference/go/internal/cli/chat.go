@@ -20,15 +20,25 @@ func chat(ctx context.Context, selected provider, opts options, reader *bufio.Sc
 	if err != nil {
 		return err
 	}
-	if err = d.Compatible(!opts.noStream); err != nil {
+	if err = d.Compatible(false); err != nil {
 		return err
 	}
 	models := make([]string, 0, len(d.API.Models))
+	streaming := make(map[string]bool, len(d.API.Models))
 	for _, m := range d.API.Models {
-		models = append(models, m.ID)
+		if err := d.ModelCompatible(m, false); err == nil {
+			models = append(models, m.ID)
+			streaming[m.ID] = slices.Contains(d.APIFor(m).Capabilities, "streaming")
+		} else if m.ID == opts.model {
+			return err
+		}
 	}
 	slices.Sort(models)
-	model, err := inference.SelectModel(models, d.API.DefaultModel, opts.model)
+	def := d.API.DefaultModel
+	if !slices.Contains(models, def) {
+		def = ""
+	}
+	model, err := inference.SelectModel(models, def, opts.model)
 	if err != nil {
 		return err
 	}
@@ -57,7 +67,7 @@ func chat(ctx context.Context, selected provider, opts options, reader *bufio.Sc
 		}
 		next := append(history, inference.Message{Role: "user", Content: prompt})
 		fmt.Fprint(out, "Assistant: ")
-		answer, err := api.Chat(ctx, model, next, !opts.noStream, func(s string) error { _, e := io.WriteString(out, descriptor.Safe(s)); return e })
+		answer, err := api.Chat(ctx, model, next, streaming[model], func(s string) error { _, e := io.WriteString(out, descriptor.Safe(s)); return e })
 		fmt.Fprintln(out)
 		if err != nil {
 			return fmt.Errorf("conversation stopped; no retry or provider switch: %w", err)

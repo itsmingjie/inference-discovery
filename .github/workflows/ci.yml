@@ -34,6 +34,27 @@ jobs:
           python-version: '3.12'
       - run: pip install -r conformance/requirements.txt
       - run: python conformance/check_schema.py
+  pi:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: reference/go/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: integrations/pi/package-lock.json
+      - run: make build
+      - run: npm ci --ignore-scripts
+        working-directory: integrations/pi
+      - run: npm run check && npm test
+        working-directory: integrations/pi
   release-config:
     runs-on: ubuntu-latest
     steps:

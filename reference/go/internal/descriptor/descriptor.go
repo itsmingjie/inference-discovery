@@ -15,6 +15,7 @@ import (
 
 const MaxBytes = 32768
 const Profile = "openai-chat-completions"
+const ResponsesProfile = "openai-responses"
 const Path = "/.well-known/inference.json"
 
 type Descriptor struct {
@@ -74,7 +75,7 @@ func (d Descriptor) Validate() error {
 	if _, err := URL(d.API.BaseURL); err != nil {
 		return fmt.Errorf("invalid api.base_url: %w", err)
 	}
-	if !tokens(d.API.Profiles, false) {
+	if !tokens(d.API.Profiles, true) {
 		return fmt.Errorf("invalid api.profiles")
 	}
 	if !tokens(d.API.Capabilities, true) {
@@ -82,6 +83,22 @@ func (d Descriptor) Validate() error {
 	}
 	if err := ValidateModels(d.API.Models); err != nil {
 		return err
+	}
+	for _, model := range d.API.Models {
+		a := d.APIFor(model)
+		if len(a.Profiles) == 0 {
+			return fmt.Errorf("each model needs at least one API profile")
+		}
+		for _, profile := range d.API.Profiles {
+			if !slices.Contains(a.Profiles, profile) {
+				return fmt.Errorf("provider profiles must be supported by every model")
+			}
+		}
+		for _, capability := range d.API.Capabilities {
+			if !slices.Contains(a.Capabilities, capability) {
+				return fmt.Errorf("provider capabilities must be supported by every model")
+			}
+		}
 	}
 	if d.API.DefaultModel != "" && !slices.ContainsFunc(d.API.Models, func(m Model) bool { return m.ID == d.API.DefaultModel }) {
 		return fmt.Errorf("api.default_model must name a model in api.models")
@@ -93,11 +110,23 @@ func (d Descriptor) Validate() error {
 }
 
 func (d Descriptor) Compatible(stream bool) error {
-	if !slices.Contains(d.API.Profiles, Profile) {
+	err := fmt.Errorf("no compatible model")
+	for _, m := range d.API.Models {
+		err = d.ModelCompatible(m, stream)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func (d Descriptor) ModelCompatible(m Model, stream bool) error {
+	api := d.APIFor(m)
+	if !slices.Contains(api.Profiles, Profile) {
 		return fmt.Errorf("unsupported API profiles: text Chat Completions required")
 	}
-	if stream && !slices.Contains(d.API.Capabilities, "streaming") {
-		return fmt.Errorf("unsupported capability: streaming required (use --no-stream)")
+	if stream && !slices.Contains(api.Capabilities, "streaming") {
+		return fmt.Errorf("unsupported capability: streaming required")
 	}
 	return nil
 }

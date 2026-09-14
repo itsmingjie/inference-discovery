@@ -4,12 +4,26 @@ import "fmt"
 
 // Model describes one text model. Omitted properties are unknown, not defaults.
 type Model struct {
-	ID               string   `json:"id"`
-	Name             *string  `json:"name,omitempty"`
-	Reasoning        *bool    `json:"reasoning,omitempty"`
-	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
-	ContextWindow    *int64   `json:"context_window,omitempty"`
-	MaxOutputTokens  *int64   `json:"max_output_tokens,omitempty"`
+	ID               string    `json:"id"`
+	API              *ModelAPI `json:"api,omitempty"`
+	Name             *string   `json:"name,omitempty"`
+	Reasoning        *bool     `json:"reasoning,omitempty"`
+	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
+	ContextWindow    *int64    `json:"context_window,omitempty"`
+	MaxOutputTokens  *int64    `json:"max_output_tokens,omitempty"`
+}
+
+// ModelAPI replaces the provider defaults for this model.
+type ModelAPI struct {
+	Profiles     []string `json:"profiles"`
+	Capabilities []string `json:"capabilities"`
+}
+
+func (d Descriptor) APIFor(m Model) ModelAPI {
+	if m.API != nil {
+		return *m.API
+	}
+	return ModelAPI{Profiles: d.API.Profiles, Capabilities: d.API.Capabilities}
 }
 
 const maxTokens = 2147483647
@@ -24,6 +38,9 @@ func ValidateModels(models []Model) error {
 			return fmt.Errorf("model IDs must be unique, printable text of 1..256 bytes")
 		}
 		seen[m.ID] = true
+		if m.API != nil && (!tokens(m.API.Profiles, false) || !tokens(m.API.Capabilities, true)) {
+			return fmt.Errorf("model.api requires profiles and capabilities")
+		}
 		if m.Name != nil && !Text(*m.Name, 128) {
 			return fmt.Errorf("invalid model name")
 		}

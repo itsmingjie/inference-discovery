@@ -1,12 +1,20 @@
 GO ?= go
 PYTHON ?= python3
 GORELEASER ?= goreleaser
+NPM ?= npm
+PI ?= pi
 
-.PHONY: build test fmt schema-check demo interop release-check snapshot
+.PHONY: build install-pi test fmt schema-check demo interop release-check snapshot
 
 build:
 	mkdir -p bin
 	cd reference/go && $(GO) build -o ../../bin/inference ./cmd/inference
+
+# Release archives already contain ./inference; source checkouts build it here.
+install-pi:
+	@if [ ! -x ./inference ]; then $(MAKE) build; fi
+	$(NPM) ci --prefix integrations/pi --omit=dev --legacy-peer-deps --ignore-scripts
+	$(PI) install ./integrations/pi
 
 test:
 	cd reference/go && $(GO) test -race ./... && $(GO) vet ./...

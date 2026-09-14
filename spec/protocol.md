@@ -6,7 +6,8 @@ the definition of the protocol.
 
 ## Scope and topology
 
-The first profile enables text Chat Completions on an existing open endpoint.
+Profiles cover text Chat Completions and Responses with function tools on existing
+open endpoints.
 A local advertiser serves a descriptor and publishes a DNS-SD service. Clients
 retrieve the descriptor, select a provider, and send inference directly to its API.
 The advertiser never proxies inference. A remote endpoint requires an advertiser
@@ -94,8 +95,8 @@ Descriptors are objects. Required fields appear below; `default_model` is option
 | `version` | Integer major version, exactly 1 for this contract. Unknown versions stop resolution. |
 | `name` | Human-readable label, 1–128 UTF-8 bytes; independent of a collision-renamed DNS instance. |
 | `api.base_url` | Absolute HTTP(S) API root, at most 2,048 UTF-8 bytes. It may name a LAN or remote server. |
-| `api.profiles` | Nonempty array of supported API contracts. Client must support at least one. |
-| `api.capabilities` | Required array of optional features; may be empty. Only `streaming` is defined here. |
+| `api.profiles` | API contracts supported by every model; defaults for models without an `api` object. May be empty only when every model specifies its own `api`. |
+| `api.capabilities` | Features supported by every model; defaults for models without an `api` object. May be empty. Defined features are `streaming` and `function-tools`. |
 | `api.default_model` | Optional model ID. Must match an entry in `api.models`. |
 | `api.models` | Required catalog of 1–128 models with unique IDs; see below. |
 | `auth.methods` | Nonempty explicit array. v0 connections require exactly `["none"]`. |
@@ -120,11 +121,13 @@ members may use version 1 if ignoring them preserves all existing semantics.
 
 Each entry in `api.models` describes an available text model at `api.base_url`.
 All listed models MUST support the advertised profile and capabilities.
+Individual models may declare additional support in their `api` object.
 
 | Field | Semantics |
 | --- | --- |
 | `id` | Required exact API model ID, 1–256 UTF-8 bytes; unique within the catalog. |
 | `name` | Optional display name, 1–128 UTF-8 bytes. |
+| `api` | Optional object with required `profiles` and `capabilities` arrays, replacing provider defaults for this model. Profiles must be nonempty; capabilities may be empty. Both use the identifier rules above. |
 | `reasoning` | Optional boolean: whether the model supports reasoning. Omitted means unknown. |
 | `reasoning_efforts` | Optional nonempty list of supported effort identifiers; requires `reasoning: true`. |
 | `context_window` | Optional maximum combined input/output context, in tokens. |
@@ -142,6 +145,22 @@ null. Omitted properties are unknown; clients MUST NOT infer limits or reasoning
 support from a model's name. Model properties are operator claims, not attestations.
 Pricing and token costs are not part of the catalog. Advertisers MUST NOT copy
 upstream pricing or arbitrary upstream metadata into the descriptor.
+
+Every model's effective profiles and capabilities MUST include the corresponding
+provider-level claims. For mixed catalogs, advertisers publish only the common
+intersection at provider level and include per-model API objects. Clients MUST
+test compatibility against the selected model's effective API. Clients that
+ignore per-model API objects can use the common claims; older validators that
+require a nonempty provider profile list reject catalogs with no common profile.
+They must not guess one. For example, a chat-only model and a Responses-only
+model require `api.profiles: []` and an `api` object on each model.
+
+Advertisers may obtain capability assertions from operator configuration,
+explicit upstream metadata, or bounded synthetic checks. They MUST NOT infer
+capability support merely from a route returning a validation error or accepting
+unknown fields. Checks are observations, not provider authentication or complete
+conformance certification. Automatic detection is reference implementation
+behavior; independent advertisers need only publish accurate descriptors.
 
 Clients select models from this catalog. They need not query the inference API
 for model information during connection. A fresh descriptor may add, remove,
@@ -167,10 +186,10 @@ up to 1 MiB. The advertiser checks this endpoint before announcing and
 periodically thereafter. Model availability is distinct from actual completion
 readiness; `/models` alone cannot prove that generation or streaming works.
 
-Clients choose a user override if given, otherwise the advertised default,
-otherwise the catalog model with the lexicographically smallest ID (UTF-8 byte
-order). A missing explicit default or override fails; do not silently substitute
-another model. v0 does not infer model modality from names. The reference
+Clients choose a user override if given, otherwise a compatible advertised default,
+otherwise the compatible catalog model with the lexicographically smallest ID
+(UTF-8 byte order). An explicit user override that is missing or incompatible fails;
+do not silently substitute another model. v0 does not infer model modality from names. The reference
 advertiser can filter a mixed upstream catalog using its configured model list.
 
 `POST <base>/chat/completions` uses JSON `model`, `messages` (text `role` and
@@ -189,6 +208,41 @@ Malformed events, upstream error objects, unsupported tool calls, timeout or
 disconnect stop the conversation. Never replay an inference POST automatically.
 The reference bounds each SSE line/event to 64 KiB, wire stream to 8 MiB, generated
 text to 1 MiB, request body to 1 MiB and conversation to 128 messages.
+
+### Function tools capability
+
+`function-tools` extends Chat Completions with JSON Schema function definitions
+in `tools`, `tool_choice: "auto"`, assistant `tool_calls`, and tool-result messages
+with matching `tool_call_id`. It also requires `system` instructions and an optional
+`max_tokens` output limit. With `streaming`, clients assemble function names
+and JSON argument fragments from `delta.tool_calls`, indexed by `index`, and
+recognize `finish_reason: "tool_calls"`. All advertised models MUST support these
+fields. Text-only Chat Completions does not imply this capability. Tool execution
+and approval remain the client's responsibility.
+
+### Responses profile
+
+`openai-responses` covers text generation and JSON-schema function tools using
+the [Responses API](https://platform.openai.com/docs/api-reference/responses/create).
+It is independent of `openai-chat-completions`; neither implies the other.
+Append `models` and `responses` to the base URL, preserving the path prefix as
+above. Model listing and selection follow the same rules.
+
+Every advertised model MUST accept text input, developer instructions, function
+tool definitions, and function call outputs. `POST <base>/responses` accepts
+`model`, `input`, `instructions`, `tools`, and `stream`. A function call supplies
+its name, JSON-encoded arguments, and `call_id`; a subsequent input can provide
+a `function_call_output` with that `call_id`. Clients execute tools according to
+their own permissions. A provider's tool call does not grant permission.
+
+With `streaming`, the server MUST support HTTP SSE Responses events, including
+`response.output_text.delta`, function argument deltas, output-item completion,
+and `response.completed`. A failed, incomplete, or interrupted response is not a
+successful completion. Clients MUST NOT replay the request automatically. This
+profile uses Responses events, not Chat Completions chunks or `[DONE]` markers.
+WebSockets, image/audio inputs, built-in web search, and hosted tools are not
+implied. Optional reasoning effort identifiers map to `reasoning.effort` only
+when both the client and model support the identifier.
 
 ## Connection and authentication extension point
 

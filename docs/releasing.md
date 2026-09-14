@@ -10,7 +10,9 @@ make snapshot
 ```
 
 Snapshot archives are written to `dist/`. Each includes the binary, protocol
-and usage documentation, dependency license files, and the Go runtime license.
+and usage documentation, the Pi extension and its installer, dependency license
+files, and the Go runtime license. The Pi installer fetches locked npm dependencies;
+it does not require Go when run from a release archive.
 GoReleaser produces `SHA256SUMS` for macOS and Linux on amd64 and arm64.
 The ignored `licenses/` directory is generated during packaging using `go mod vendor`.
 

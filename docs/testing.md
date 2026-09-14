@@ -13,6 +13,13 @@ Tests cover descriptor policy, authentication rejection, endpoint scope,
 credential isolation, redirects, TLS validation, model selection, interrupted
 streams, and the CLI's descriptor-URL flow. Standard JSON/SSE behavior is left to
 the libraries; regression cases cover the additional protocol requirements.
+Advertiser tests also cover delayed endpoint startup, withdrawal and recovery,
+capability-check cooldowns, and model removal.
+
+For the [Pi extension](../integrations/pi/README.md), run `make build`, then
+`npm ci`, `npm run check`, and `npm test` from `integrations/pi`. Its tests use
+the real CLI and Pi runtime with local HTTP servers, including package loading
+without the CLI on PATH; no account or multicast is required.
 
 For a parser fuzz campaign:
 

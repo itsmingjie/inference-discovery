@@ -33,8 +33,7 @@
           "pattern": "^https?://[^/@?#\\\\\\s]+(?:/[^?#\\\\\\s]*)?$"
         },
         "profiles": {
-          "$ref": "#/$defs/tokens",
-          "minItems": 1
+          "$ref": "#/$defs/tokens"
         },
         "capabilities": {
           "$ref": "#/$defs/tokens"
@@ -52,7 +51,29 @@
           }
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "profiles": {
+                "maxItems": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "models": {
+                "items": {
+                  "required": [
+                    "api"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "auth": {
       "type": "object",
@@ -114,6 +135,9 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647
+        },
+        "api": {
+          "$ref": "#/$defs/model-api"
         }
       },
       "dependentSchemas": {
@@ -126,6 +150,23 @@
               "const": true
             }
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "model-api": {
+      "type": "object",
+      "required": [
+        "profiles",
+        "capabilities"
+      ],
+      "properties": {
+        "profiles": {
+          "$ref": "#/$defs/tokens",
+          "minItems": 1
+        },
+        "capabilities": {
+          "$ref": "#/$defs/tokens"
         }
       },
       "additionalProperties": true

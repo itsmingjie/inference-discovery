@@ -55,10 +55,14 @@ func TestEndpointAndNoReplay(t *testing.T) {
 	}
 	c := Client{HTTP: transport.Client(time.Second), Base: d.API.BaseURL, Session: session}
 	defer c.HTTP.CloseIdleConnections()
-	models, err := c.Models(context.Background())
+	catalog, err := c.Catalog(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(catalog) != 2 {
+		t.Fatal("incorrect catalog", catalog)
+	}
+	models := []string{catalog[0].ID, catalog[1].ID}
 	if m, e := SelectModel(models, "", ""); e != nil || m != "a" {
 		t.Fatal(m, e)
 	}

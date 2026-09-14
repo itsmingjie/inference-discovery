@@ -66,9 +66,6 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errout io.Writer
 		fs.BoolVar(&opts.json, "json", false, "JSON output (watch uses JSON Lines)")
 		fs.BoolVar(&opts.watch, "watch", false, "watch fresh snapshots for added, updated, removed providers")
 	}
-	if args[0] != "discover" {
-		fs.BoolVar(&opts.noStream, "no-stream", false, "use non-streaming Chat Completions")
-	}
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -116,7 +113,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errout io.Writer
 		return err
 	}
 	if args[0] == "inspect" {
-		return inspect(ctx, selected, !opts.noStream, out)
+		return inspect(ctx, selected, out)
 	}
 	return chat(ctx, selected, opts, reader, out)
 }
@@ -124,5 +121,5 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errout io.Writer
 type options struct {
 	iface, url, provider, model  string
 	timeout, browse, chatTimeout time.Duration
-	json, watch, noStream        bool
+	json, watch                  bool
 }

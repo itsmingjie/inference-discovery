@@ -3,12 +3,10 @@ package cli
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -75,16 +73,22 @@ func advertise(ctx context.Context, args []string, out, errout io.Writer) error 
 		return err
 	}
 	api := inference.Client{HTTP: c, Base: cfg.Endpoint, Session: session}
-	initial, err := providerDescriptor(ctx, cfg, api)
-	if err != nil {
-		return fmt.Errorf("endpoint preflight failed: %w", err)
+	detectionTimeout, err := time.ParseDuration(cfg.DetectionTimeout)
+	if err != nil || detectionTimeout < 100*time.Millisecond || detectionTimeout > 10*time.Minute {
+		return fmt.Errorf("detection timeout must be between 100ms and 10m")
 	}
+	catalog := catalogBuilder{cfg: cfg, api: api, timeout: detectionTimeout, out: errout}
+	return catalog.advertise(ctx, nic, interval, discovery.MDNS{}, out)
+}
+
+func (catalog *catalogBuilder) advertise(ctx context.Context, nic net.Interface, interval time.Duration, backend discovery.Backend, out io.Writer) error {
+	cfg := catalog.cfg
+	fmt.Fprintln(out, "Checking available models and API support...")
 	listener, err := net.Listen("tcp", cfg.Listen)
 	if err != nil {
 		return err
 	}
 	var document atomic.Pointer[[]byte]
-	document.Store(&initial)
 	handler := metadataHandler(&document)
 	server := &http.Server{
 		Handler:           handler,
@@ -111,7 +115,6 @@ func advertise(ctx context.Context, args []string, out, errout io.Writer) error 
 	if cfg.TLSCert != "" {
 		scheme = "https"
 	}
-	backend := discovery.MDNS{}
 	var cancelAd context.CancelFunc
 	var adDone chan error
 	start := func() {
@@ -137,12 +140,13 @@ func advertise(ctx context.Context, args []string, out, errout io.Writer) error 
 			adDone = nil
 		}
 	}
-	start()
 	defer stop()
-	fmt.Fprintf(out, "Advertising %s on %s; metadata %s://%s%s\n", descriptor.Safe(cfg.Name), nic.Name, scheme, listener.Addr(), descriptor.Path)
 	fmt.Fprintf(out, "Inference goes directly to %s. Open access; discovery does not establish identity or locality.\n", descriptor.Safe(cfg.Endpoint))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// Check immediately, then wait between completed checks. An unavailable server
+	// can start later; until then metadata returns 503 and nothing is advertised.
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	lastProblem := ""
 	for {
 		select {
 		case <-ctx.Done():
@@ -156,18 +160,24 @@ func advertise(ctx context.Context, args []string, out, errout io.Writer) error 
 				return nil
 			}
 			return fmt.Errorf("discovery backend stopped: %v", err)
-		case <-ticker.C:
-			b, healthErr := providerDescriptor(ctx, cfg, api)
+		case <-timer.C:
+			b, healthErr := catalog.build(ctx)
+			timer.Reset(interval)
 			if healthErr != nil {
 				document.Store(nil)
 				stop()
-				fmt.Fprintln(errout, "Advertisement withdrawn:", descriptor.Safe(healthErr.Error()))
+				problem := descriptor.Safe(healthErr.Error())
+				if problem != lastProblem {
+					fmt.Fprintln(catalog.out, "Not advertising; will retry:", problem)
+				}
+				lastProblem = problem
 				continue
 			}
 			document.Store(&b)
+			lastProblem = ""
 			if cancelAd == nil {
 				start()
-				fmt.Fprintln(out, "Endpoint recovered; advertising again.")
+				fmt.Fprintf(out, "Advertising %s on %s; metadata port %d\n", descriptor.Safe(cfg.Name), nic.Name, listener.Addr().(*net.TCPAddr).Port)
 			}
 		}
 	}
@@ -196,57 +206,4 @@ func metadataHandler(document *atomic.Pointer[[]byte]) http.Handler {
 			w.Write(*body)
 		}
 	})
-}
-
-// providerDescriptor rebuilds the catalog from each successful health response.
-func providerDescriptor(ctx context.Context, cfg advertiseConfig, api inference.Client) ([]byte, error) {
-	capabilities := []string{}
-	if !cfg.NoStream {
-		capabilities = append(capabilities, "streaming")
-	}
-	d := descriptor.Descriptor{
-		Version: 1,
-		Name:    cfg.Name,
-		API: descriptor.API{
-			BaseURL:      cfg.Endpoint,
-			Profiles:     []string{descriptor.Profile},
-			Capabilities: capabilities,
-		},
-		Auth: descriptor.Auth{Methods: []string{"none"}},
-	}
-	models, err := api.Models(ctx)
-	if err != nil {
-		return nil, err
-	}
-	catalog := make([]descriptor.Model, 0, len(models))
-	if cfg.Models == nil {
-		for _, id := range models {
-			catalog = append(catalog, descriptor.Model{ID: id})
-		}
-	} else {
-		for _, m := range cfg.Models {
-			if slices.Contains(models, m.ID) {
-				catalog = append(catalog, m)
-			}
-		}
-	}
-	ids := make([]string, 0, len(catalog))
-	for _, m := range catalog {
-		ids = append(ids, m.ID)
-	}
-	slices.Sort(ids)
-	model, err := inference.SelectModel(ids, "", cfg.Model)
-	if err != nil {
-		return nil, err
-	}
-	d.API.DefaultModel = model
-	d.API.Models = catalog
-	if err := d.Validate(); err != nil {
-		return nil, err
-	}
-	b, err := json.Marshal(d)
-	if len(b) > descriptor.MaxBytes {
-		return nil, fmt.Errorf("descriptor exceeds 32 KiB; configure a smaller model list")
-	}
-	return b, err
 }

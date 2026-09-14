@@ -15,8 +15,11 @@ inference advertise --name "Office AI" --endpoint http://192.168.1.20:8000/v1
 inference chat
 ```
 
-No accounts or client API keys are required. If multiple network interfaces are
-available, select one with `--interface`.
+No accounts or client API keys are required. The network interface, model catalog,
+and default model are selected automatically; overrides are optional.
+
+The advertiser checks the supplied endpoint and detects streaming and tool support
+per model. No API profile selection is needed.
 
 ## Build
 
@@ -49,6 +52,11 @@ Follow the [quickstart](docs/quickstart.md) for a two-machine walkthrough, or ru
 covers configuration, interfaces, HTTPS, and remote APIs. See [model catalogs](docs/models.md)
 to share several models with different properties.
 
+The [Pi extension](integrations/pi/README.md) makes discovered models available
+in Pi's native model picker. With Pi installed, run `make install-pi` once from
+this checkout. No PATH changes or client endpoint configuration are needed.
+Pi handles model selection and use.
+
 ## Security
 
 Open access permits anyone who can reach the endpoint to use it. Discovery does
@@ -67,7 +75,7 @@ this repository does not implement one. Read the [security model](spec/security.
 - [Contributing](CONTRIBUTING.md) and [release process](docs/releasing.md)
 
 The specification and fixtures are language independent. The reference code lives
-under `reference/go`. Authentication enrollment, client integrations, and public
-SDKs are deferred.
+under `reference/go`; client adapters live under `integrations`. Authentication
+enrollment and public SDKs are deferred.
 
 [MIT license](LICENSE).

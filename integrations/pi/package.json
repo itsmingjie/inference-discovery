@@ -1,0 +1,31 @@
+{
+  "name": "pi-inference-discovery",
+  "version": "0.1.0",
+  "description": "Make network inference models available in Pi's model picker",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itsmingjie/inference-discovery.git",
+    "directory": "integrations/pi"
+  },
+  "keywords": ["pi-package"],
+  "files": ["index.ts", "provider.ts", "README.md"],
+  "pi": { "extensions": ["./index.ts"] },
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "test": "node --test *.test.ts",
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.85.1 <0.86.0",
+    "@earendil-works/pi-coding-agent": ">=0.85.1 <0.86.0"
+  },
+  "dependencies": { "undici": "^7.16.0" },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}

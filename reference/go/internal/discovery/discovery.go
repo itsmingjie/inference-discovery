@@ -16,6 +16,7 @@ import (
 
 	"github.com/brutella/dnssd"
 	"github.com/grandcat/zeroconf"
+	"github.com/libp2p/go-netroute"
 
 	"github.com/itsmingjie/inference-discovery/reference/go/internal/descriptor"
 )
@@ -78,6 +79,23 @@ func Interface(name string) (net.Interface, error) {
 	if len(candidates) == 1 {
 		return candidates[0], nil
 	}
+	// Ask the OS where mDNS would go, without contacting anything on the network.
+	// Never broaden discovery to every interface or select an ineligible VPN route.
+	if len(candidates) > 1 {
+		if router, err := netroute.New(); err == nil {
+			for _, destination := range []net.IP{net.IPv4(224, 0, 0, 251), net.ParseIP("ff02::fb")} {
+				routed, _, _, err := router.Route(destination)
+				if err != nil || routed == nil {
+					continue
+				}
+				for _, nic := range candidates {
+					if nic.Index == routed.Index {
+						return nic, nil
+					}
+				}
+			}
+		}
+	}
 	names := []string{}
 	for _, n := range candidates {
 		names = append(names, n.Name)
@@ -93,12 +111,21 @@ func (MDNS) Advertise(ctx context.Context, a Advertisement) error {
 	if _, err := rand.Read(nonce); err != nil {
 		return err
 	}
+	id := hex.EncodeToString(nonce)
+	// Duplicate display names are normal. Give each registration its own DNS label
+	// rather than relying on all peers receiving collision probes. Clients display
+	// the descriptor name, which remains unchanged.
+	name := a.Name
+	if len(name) > 46 {
+		name = strings.ToValidUTF8(name[:46], "")
+	}
+	name += "-" + id
 	host := a.Host
 	if host == "" {
-		host = "inference-" + hex.EncodeToString(nonce)
+		host = "inference-" + id
 	}
 	s, err := dnssd.NewService(dnssd.Config{
-		Name:   a.Name,
+		Name:   name,
 		Host:   host,
 		Type:   Service,
 		Port:   a.Port,

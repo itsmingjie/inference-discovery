@@ -6,13 +6,13 @@ This does not establish two-machine or Avahi interoperability.
 """
 import argparse
 import json
-import select
 import signal
 import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -77,12 +77,9 @@ try:
     cmd = [binary, "advertise", "--name", name, "--endpoint", endpoint,
            "--allow-loopback", "--interface", args.interface, "--health-interval", "1s", "--timeout", "1s"]
     first = spawn(cmd)
-    assert select.select([first.stdout], [], [], 8)[0], "advertiser startup timeout"
-    line = first.stdout.readline()
-    assert "Advertising" in line, line
     records = expect(1)
     # Test advertised descriptor addresses and IPv6 loopback transport separately.
-    port = int(line.split("metadata http://")[1].split("/")[0].rsplit(":", 1)[1])
+    port = urllib.parse.urlsplit(records[0]["descriptor_url"]).port
     with opener.open(f"http://[::1]:{port}/.well-known/inference.json", timeout=3) as r:
         assert json.load(r)["name"] == name
     second = spawn(cmd)

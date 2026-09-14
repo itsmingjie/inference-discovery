@@ -16,6 +16,7 @@ import (
 
 func TestFallbackChatAndAuthOrder(t *testing.T) {
 	method := "none"
+	stream := true
 	contextWindow := int64(131072)
 	hits := 0
 	var s *httptest.Server
@@ -26,18 +27,32 @@ func TestFallbackChatAndAuthOrder(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/descriptor":
-			json.NewEncoder(w).Encode(descriptor.Descriptor{Version: 1, Name: "Office AI", API: descriptor.API{BaseURL: s.URL + "/v1", Profiles: []string{descriptor.Profile}, Capabilities: []string{"streaming"}, DefaultModel: "chat", Models: []descriptor.Model{{ID: "chat"}, {ID: "reasoner", ContextWindow: &contextWindow}}}, Auth: descriptor.Auth{Methods: []string{method}}})
+			capabilities := []string{}
+			if stream {
+				capabilities = append(capabilities, "streaming")
+			}
+			json.NewEncoder(w).Encode(descriptor.Descriptor{Version: 1, Name: "Office AI", API: descriptor.API{BaseURL: s.URL + "/v1", Profiles: []string{descriptor.Profile}, Capabilities: capabilities, DefaultModel: "chat", Models: []descriptor.Model{{ID: "chat"}, {ID: "reasoner", ContextWindow: &contextWindow}}}, Auth: descriptor.Auth{Methods: []string{method}}})
 		case "/v1/models":
 			t.Error("client must use the descriptor catalog, not fetch /models")
 			http.Error(w, "unexpected request", 500)
 		case "/v1/chat/completions":
 			hits++
-			var body struct{ Model string }
+			var body struct {
+				Model  string
+				Stream bool
+			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Model != "reasoner" {
 				t.Errorf("model override not sent: %q (%v)", body.Model, err)
 			}
-			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n")
+			if body.Stream != stream {
+				t.Error("streaming mode did not follow the descriptor")
+			}
+			if stream {
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hello!\"}}]}\n\ndata: [DONE]\n\n")
+			} else {
+				fmt.Fprint(w, `{"choices":[{"message":{"content":"Hello!"}}]}`)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -56,6 +71,17 @@ func TestFallbackChatAndAuthOrder(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Fatal("unavailable model reached endpoint")
+	}
+	stream = false
+	out.Reset()
+	if err := Run(context.Background(), args, strings.NewReader("hi\n/quit\n"), &out, &errout); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 2 || !strings.Contains(out.String(), "Hello!") {
+		t.Fatal("non-streaming model needed extra configuration", hits, out.String())
+	}
+	if err := Run(context.Background(), []string{"inspect", "--descriptor-url", s.URL + "/descriptor"}, strings.NewReader(""), &out, &errout); err != nil {
+		t.Fatal("non-streaming provider incorrectly reported as incompatible", err)
 	}
 	method = "approval"
 	hits = 0
